@@ -19,7 +19,7 @@ const LaunchRequestHandler = {
   },
   handle(handlerInput) {
     const { responseBuilder } = handlerInput;
-    const speechText = "Welcome to Find Me Breakfast, Let's find you that party platter! Just ask, 'Find me a diner'";
+    const speechText = "Welcome to Find Me Breakfast, Let's find you breakfast! Just ask, 'what\'s open?'";
 
     if (supportsDisplay(handlerInput)) {
       const title = `find Me Breakfast`;
@@ -27,7 +27,7 @@ const LaunchRequestHandler = {
       const primaryText = new Alexa.RichTextContentHelper()
         .withPrimaryText("Welcome to Find Me Breakfast.")
         .getTextContent();
-      const hint = "Find me a diner."
+      const hint = "whats open?"
       responseBuilder.addRenderTemplateDirective({
         type: bodyTemplate,
         backButton: 'visible',
@@ -51,7 +51,6 @@ const FindDinerIntentHandler = {
   },
   async handle(handlerInput) {
     const { requestEnvelope, serviceClientFactory, responseBuilder } = handlerInput;
-
     const consentToken = requestEnvelope.context.System.user.permissions && requestEnvelope.context.System.user.permissions.consentToken;
     if (!consentToken) {
       return responseBuilder
@@ -73,7 +72,7 @@ const FindDinerIntentHandler = {
         let speechText = ''
         const diner = await searchForDiners(lat.toString(),lng.toString())
 
-        speechText += `How does ${getTitle(diner.name)} sound? Enjoy breakfast!`;
+        speechText += `How does ${getTitle(diner.name)} sound? If you want another recomendation just say, 'show me somewhere different'. Enjoy breakfast!`;
 
         if (supportsDisplay(handlerInput)) {
           const image = new Alexa.ImageHelper()
@@ -92,18 +91,18 @@ const FindDinerIntentHandler = {
             textContent: primaryText,
           });
         }
-
         return responseBuilder.withStandardCard(
-            `${getTitle(diner.name)}`,
-            getDescription(diner.plus_code.global_code, diner.rating, diner.price_level),
+            `${diner.name}`,
+            getStandardDescription(diner.plus_code.global_code, diner.rating, diner.price_level),
             getImage(400, diner.photos[0].photo_reference),
             getImage(800, diner.photos[0].photo_reference),
           )
           .speak(speechText)
-          .withShouldEndSession(true)
+          .reprompt(speechText)
           .getResponse();
       }
     } catch (error) {
+      console.log(error)
       if (error.name !== 'ServiceError') {
         const response = responseBuilder.speak(messages.ERROR).getResponse();
         return response;
@@ -202,8 +201,15 @@ getTitle = (title) => {
 }
 
 const getDescription = (locationCode, rating, price) => {
-  return `Search ${locationCode} in Google Maps, to get directions. <br/>
-  Rating: ${rating}/5 <br/>
+  let returnString = `Search ${locationCode} in Google Maps, to get directions. <br/>`
+  if(rating) returnString += `Rating: ${rating}/5 <br/>`
+  if(price) returnString += `Price: ${price}/5`
+  return returnString
+}
+
+const getStandardDescription = (locationCode, rating, price) => {
+  return `Search ${locationCode} in Google Maps, to get directions. \n
+  Rating: ${rating}/5 \n
   Price: ${price}/5
   `
 }
@@ -238,6 +244,7 @@ let skill;
 exports.handler = async (event, context) => {
   if (!skill) {
     skill = Alexa.SkillBuilders.custom()
+      .withApiClient(new Alexa.DefaultApiClient())
       .addRequestHandlers(
         LaunchRequestHandler,
         FindDinerIntentHandler,
